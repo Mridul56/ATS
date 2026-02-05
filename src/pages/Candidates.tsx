@@ -7,7 +7,6 @@ import type { Database } from '../lib/database.types';
 type Candidate = Database['public']['Tables']['candidates']['Row'];
 type Job = Database['public']['Tables']['jobs']['Row'];
 type CandidateStage = Database['public']['Enums']['candidate_stage'];
-type JobApplication = Database['public']['Tables']['job_applications']['Row'];
 
 const stages: { id: CandidateStage; name: string; color: string }[] = [
   { id: 'applied', name: 'Applied', color: 'bg-blue-500' },
@@ -25,10 +24,6 @@ interface CandidatesProps {
 interface CandidateWithJob extends Candidate {
   job_title?: string;
   job_id?: string;
-  application_id?: string;
-  application_stage?: CandidateStage;
-  interview_rounds?: any[];
-  number_of_interview_rounds?: number;
 }
 
 export const Candidates: React.FC<CandidatesProps> = ({ onCandidateSelect }) => {
@@ -85,31 +80,18 @@ export const Candidates: React.FC<CandidatesProps> = ({ onCandidateSelect }) => 
         .select(`
           *,
           candidate:candidates(*),
-          job:jobs(id, title, number_of_interview_rounds)
+          job:jobs(id, title)
         `)
         .order('applied_at', { ascending: false });
 
       if (error) throw error;
 
-      const candidatesWithJobs = await Promise.all(
-        (applications || []).map(async (app: any) => {
-          const { data: rounds } = await supabase
-            .from('interview_rounds')
-            .select('*, panelists:interview_round_panelists(*)')
-            .eq('application_id', app.id)
-            .order('round_number', { ascending: true });
-
-          return {
-            ...app.candidate,
-            job_title: app.job?.title,
-            job_id: app.job?.id,
-            application_id: app.id,
-            application_stage: app.stage,
-            number_of_interview_rounds: app.job?.number_of_interview_rounds || 3,
-            interview_rounds: rounds || [],
-          };
-        })
-      );
+      const candidatesWithJobs = (applications || []).map((app: any) => ({
+        ...app.candidate,
+        job_title: app.job?.title,
+        job_id: app.job?.id,
+        application_stage: app.stage,
+      }));
 
       setCandidates(candidatesWithJobs);
     } catch (error) {
@@ -339,7 +321,6 @@ export const Candidates: React.FC<CandidatesProps> = ({ onCandidateSelect }) => 
     }
   };
 
-
   const filteredCandidates = candidates.filter((candidate) => {
     const matchesSearch =
       candidate.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -516,50 +497,20 @@ export const Candidates: React.FC<CandidatesProps> = ({ onCandidateSelect }) => 
                           </div>
                         )}
 
-                        <div className="mt-3 pt-3 border-t border-slate-100">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs text-slate-500">
-                              Applied {new Date(candidate.created_at).toLocaleDateString()}
-                            </span>
-                            {candidate.resume_url && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  window.open(candidate.resume_url, '_blank');
-                                }}
-                                className="text-xs text-slate-900 hover:text-slate-700 font-medium px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded transition"
-                              >
-                                View Resume
-                              </button>
-                            )}
-                          </div>
-                          {candidate.interview_rounds && candidate.interview_rounds.length > 0 && (
-                            <div className="mt-2 space-y-1">
-                              {candidate.interview_rounds.map((round: any) => (
-                                <div key={round.id} className="text-xs bg-slate-50 rounded px-2 py-1">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-medium text-slate-700">{round.round_name}</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-xs ${
-                                      round.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                      round.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
-                                      'bg-slate-100 text-slate-600'
-                                    }`}>
-                                      {round.status}
-                                    </span>
-                                  </div>
-                                  {round.panelists && round.panelists.length > 0 && (
-                                    <div className="mt-1 text-slate-600">
-                                      Interviewers: {round.panelists.map((p: any) => p.panelist_name).join(', ')}
-                                    </div>
-                                  )}
-                                  {round.scheduled_at && (
-                                    <div className="text-slate-500 mt-0.5">
-                                      {new Date(round.scheduled_at).toLocaleString()}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
+                        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-xs text-slate-500">
+                            Applied {new Date(candidate.created_at).toLocaleDateString()}
+                          </span>
+                          {candidate.resume_url && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(candidate.resume_url, '_blank');
+                              }}
+                              className="text-xs text-slate-900 hover:text-slate-700 font-medium px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded transition"
+                            >
+                              View Resume
+                            </button>
                           )}
                         </div>
                       </div>

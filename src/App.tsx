@@ -15,7 +15,6 @@ import { CandidateDashboard } from './pages/CandidateDashboard';
 import { CandidatePortal } from './pages/CandidatePortal';
 import { HiringManagerDashboard } from './pages/HiringManagerDashboard';
 import { FinanceDashboard } from './pages/FinanceDashboard';
-import { InterviewerDashboard } from './pages/InterviewerDashboard';
 import { Layout } from './components/Layout';
 
 const AppContent: React.FC = () => {
@@ -38,6 +37,12 @@ const AppContent: React.FC = () => {
     }
     return 'login';
   });
+
+  useEffect(() => {
+    if (profile?.role === 'interviewer') {
+      setCurrentPage('interviews');
+    }
+  }, [profile]);
 
   if (loading) {
     return (
@@ -95,14 +100,6 @@ const AppContent: React.FC = () => {
     return (
       <Layout currentPage="portal" onNavigate={() => {}}>
         <CandidatePortal />
-      </Layout>
-    );
-  }
-
-  if (profile?.role === 'interviewer') {
-    return (
-      <Layout currentPage="dashboard" onNavigate={() => {}}>
-        <InterviewerDashboard />
       </Layout>
     );
   }

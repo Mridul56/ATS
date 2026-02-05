@@ -33,8 +33,6 @@ export const JobForm: React.FC<JobFormProps> = ({ onClose, onSuccess }) => {
   const [keywordInput, setKeywordInput] = useState('');
   const [preferredInput, setPreferredInput] = useState('');
   const [qualificationInput, setQualificationInput] = useState('');
-  const [interviewers, setInterviewers] = useState<Array<{ name: string; email: string; role: string }>>([]);
-  const [interviewerInput, setInterviewerInput] = useState({ name: '', email: '', role: '' });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +55,6 @@ export const JobForm: React.FC<JobFormProps> = ({ onClose, onSuccess }) => {
         mandatory_keywords: mandatoryKeywords,
         preferred_keywords: preferredKeywords,
         required_qualifications: requiredQualifications,
-        interviewers: interviewers,
         status: 'draft',
         created_by: profile?.id,
       });
@@ -102,17 +99,6 @@ export const JobForm: React.FC<JobFormProps> = ({ onClose, onSuccess }) => {
     } else {
       setRequiredQualifications(requiredQualifications.filter((_, i) => i !== index));
     }
-  };
-
-  const addInterviewer = () => {
-    if (interviewerInput.name.trim() && interviewerInput.email.trim()) {
-      setInterviewers([...interviewers, { ...interviewerInput }]);
-      setInterviewerInput({ name: '', email: '', role: '' });
-    }
-  };
-
-  const removeInterviewer = (index: number) => {
-    setInterviewers(interviewers.filter((_, i) => i !== index));
   };
 
   return (
@@ -423,76 +409,6 @@ export const JobForm: React.FC<JobFormProps> = ({ onClose, onSuccess }) => {
                   ))}
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">
-              Interview Panel
-            </h3>
-            <p className="text-sm text-slate-600 mb-4">
-              Add interviewers who will be available for scheduling interviews
-            </p>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <input
-                  type="text"
-                  value={interviewerInput.name}
-                  onChange={(e) => setInterviewerInput({ ...interviewerInput, name: e.target.value })}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  placeholder="Interviewer Name"
-                />
-                <input
-                  type="email"
-                  value={interviewerInput.email}
-                  onChange={(e) => setInterviewerInput({ ...interviewerInput, email: e.target.value })}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  placeholder="Email"
-                />
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={interviewerInput.role}
-                    onChange={(e) => setInterviewerInput({ ...interviewerInput, role: e.target.value })}
-                    className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                    placeholder="Role/Title"
-                  />
-                  <button
-                    type="button"
-                    onClick={addInterviewer}
-                    className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {interviewers.length > 0 && (
-                <div className="space-y-2">
-                  {interviewers.map((interviewer, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-slate-900">{interviewer.name}</p>
-                        <p className="text-sm text-slate-600">{interviewer.email}</p>
-                        {interviewer.role && (
-                          <p className="text-xs text-slate-500">{interviewer.role}</p>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeInterviewer(index)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
