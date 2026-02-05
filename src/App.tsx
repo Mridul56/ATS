@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -37,12 +37,6 @@ const AppContent: React.FC = () => {
     }
     return 'login';
   });
-
-  useEffect(() => {
-    if (profile?.role === 'interviewer') {
-      setCurrentPage('interviews');
-    }
-  }, [profile]);
 
   if (loading) {
     return (
