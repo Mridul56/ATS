@@ -31,6 +31,12 @@ interface Profile {
   role: string;
 }
 
+interface Interviewer {
+  name: string;
+  email: string;
+  role: string;
+}
+
 export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
   candidateId,
   jobId,
@@ -39,14 +45,15 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
 }) => {
   const { profile } = useAuth();
   const [interviews, setInterviews] = useState<InterviewSchedule[]>([]);
-  const [interviewers, setInterviewers] = useState<Profile[]>([]);
+  const [interviewers, setInterviewers] = useState<Interviewer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [newInterview, setNewInterview] = useState({
     round_number: 1,
-    interviewer_id: '',
+    interviewer_name: '',
+    interviewer_email: '',
     scheduled_at: '',
     duration_minutes: 60,
     meeting_link: '',
@@ -56,17 +63,14 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
   useEffect(() => {
     loadInterviews();
     loadInterviewers();
-  }, [candidateId, applicationId]);
+  }, [candidateId, applicationId, jobId]);
 
   const loadInterviews = async () => {
     try {
       const { data, error } = await supabase
-        .from('interview_schedules')
-        .select(`
-          *,
-          interviewer:profiles!interviewer_id(id, full_name)
-        `)
-        .eq('job_application_id', applicationId)
+        .from('interview_rounds')
+        .select('*, panelists:interview_round_panelists(*)')
+        .eq('application_id', applicationId)
         .order('round_number', { ascending: true });
 
       if (error) throw error;
@@ -74,10 +78,10 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
       const interviewsData = (data || []).map((int: any) => ({
         id: int.id,
         round_number: int.round_number,
-        interviewer_id: int.interviewer_id,
-        interviewer_name: int.interviewer?.full_name || null,
+        interviewer_id: null,
+        interviewer_name: int.panelists?.map((p: any) => p.panelist_name).join(', ') || null,
         scheduled_at: int.scheduled_at,
-        duration_minutes: int.duration_minutes,
+        duration_minutes: 60,
         status: int.status,
         feedback: int.feedback,
         rating: int.rating,
@@ -101,13 +105,16 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
 
   const loadInterviewers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, role')
-        .in('role', ['admin', 'recruiter', 'hiring_manager']);
+      const { data: job, error } = await supabase
+        .from('jobs')
+        .select('interviewers')
+        .eq('id', jobId)
+        .maybeSingle();
 
       if (error) throw error;
-      setInterviewers(data || []);
+
+      const interviewersList = (job?.interviewers as Interviewer[]) || [];
+      setInterviewers(interviewersList);
     } catch (error) {
       console.error('Error loading interviewers:', error);
     }
@@ -116,7 +123,7 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
   const handleScheduleInterview = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!newInterview.interviewer_id || !newInterview.scheduled_at) {
+    if (!newInterview.interviewer_name || !newInterview.interviewer_email || !newInterview.scheduled_at) {
       alert('Please select an interviewer and schedule date/time');
       return;
     }
@@ -124,27 +131,37 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
     setSubmitting(true);
 
     try {
-      const { error } = await supabase.from('interview_schedules').insert({
-        job_application_id: applicationId,
-        candidate_id: candidateId,
-        job_id: jobId,
-        round_number: newInterview.round_number,
-        interviewer_id: newInterview.interviewer_id,
-        scheduled_at: newInterview.scheduled_at,
-        duration_minutes: newInterview.duration_minutes,
-        meeting_link: newInterview.meeting_link || null,
-        notes: newInterview.notes || null,
-        status: 'scheduled',
-      });
+      const { data: newRound, error: roundError } = await supabase
+        .from('interview_rounds')
+        .insert({
+          application_id: applicationId,
+          round_number: newInterview.round_number,
+          round_name: `Round ${newInterview.round_number}`,
+          scheduled_at: newInterview.scheduled_at,
+          meeting_link: newInterview.meeting_link || null,
+          notes: newInterview.notes || null,
+          status: 'scheduled',
+          created_by: profile?.id,
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (roundError) throw roundError;
+
+      const { error: panelistError } = await supabase
+        .from('interview_round_panelists')
+        .insert({
+          interview_round_id: newRound.id,
+          panelist_name: newInterview.interviewer_name,
+          panelist_email: newInterview.interviewer_email,
+          panelist_role: interviewers.find(i => i.name === newInterview.interviewer_name)?.role || null,
+        });
+
+      if (panelistError) throw panelistError;
 
       const { error: appError } = await supabase
         .from('job_applications')
-        .update({
-          current_interview_round: newInterview.round_number,
-          stage: 'interview',
-        })
+        .update({ stage: 'interview' })
         .eq('id', applicationId);
 
       if (appError) throw appError;
@@ -159,7 +176,8 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
 
       setNewInterview({
         round_number: newInterview.round_number + 1,
-        interviewer_id: '',
+        interviewer_name: '',
+        interviewer_email: '',
         scheduled_at: '',
         duration_minutes: 60,
         meeting_link: '',
@@ -185,7 +203,7 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
   ) => {
     try {
       const { error } = await supabase
-        .from('interview_schedules')
+        .from('interview_rounds')
         .update({
           result,
           feedback: feedback || null,
@@ -208,6 +226,13 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
     } catch (error) {
       console.error('Error updating interview result:', error);
     }
+  };
+
+  const canScheduleNextRound = () => {
+    if (interviews.length === 0) return true;
+
+    const lastRound = interviews[interviews.length - 1];
+    return lastRound.status === 'completed' && lastRound.result === 'passed';
   };
 
   const getStatusColor = (status: string) => {
@@ -250,13 +275,19 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-slate-900">Interview Rounds</h3>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 text-sm bg-slate-900 text-white px-3 py-2 rounded-lg hover:bg-slate-800 transition"
-        >
-          <Plus className="w-4 h-4" />
-          Schedule Round
-        </button>
+        {canScheduleNextRound() ? (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 text-sm bg-slate-900 text-white px-3 py-2 rounded-lg hover:bg-slate-800 transition"
+          >
+            <Plus className="w-4 h-4" />
+            Schedule Round {newInterview.round_number}
+          </button>
+        ) : (
+          <div className="text-sm text-slate-500 bg-slate-50 px-3 py-2 rounded-lg">
+            Complete previous round to schedule next
+          </div>
+        )}
       </div>
 
       {interviews.length === 0 ? (
@@ -370,21 +401,28 @@ export const InterviewRoundManager: React.FC<InterviewRoundManagerProps> = ({
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Interviewer *
                 </label>
-                <select
-                  value={newInterview.interviewer_id}
-                  onChange={(e) =>
-                    setNewInterview({ ...newInterview, interviewer_id: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select an interviewer</option>
-                  {interviewers.map((interviewer) => (
-                    <option key={interviewer.id} value={interviewer.id}>
-                      {interviewer.full_name} ({interviewer.role})
-                    </option>
-                  ))}
-                </select>
+                {interviewers.length > 0 ? (
+                  <select
+                    value={`${newInterview.interviewer_name}|${newInterview.interviewer_email}`}
+                    onChange={(e) => {
+                      const [name, email] = e.target.value.split('|');
+                      setNewInterview({ ...newInterview, interviewer_name: name, interviewer_email: email });
+                    }}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Select an interviewer</option>
+                    {interviewers.map((interviewer, index) => (
+                      <option key={index} value={`${interviewer.name}|${interviewer.email}`}>
+                        {interviewer.name} {interviewer.role && `(${interviewer.role})`}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="text-sm text-slate-600 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    No interviewers added to this job. Please add interviewers in the job details.
+                  </div>
+                )}
               </div>
 
               <div>

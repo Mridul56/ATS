@@ -7,7 +7,7 @@ export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'admin' | 'recruiter' | 'hiring_manager' | 'interviewer' | 'finance'>('recruiter');
+  const [role, setRole] = useState<'admin' | 'recruiter' | 'hiring_manager' | 'interviewer' | 'finance' | 'approver'>('recruiter');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
@@ -95,7 +95,7 @@ export const Login: React.FC = () => {
                     <option value="recruiter">Recruiter</option>
                     <option value="hiring_manager">Hiring Manager</option>
                     <option value="interviewer">Interviewer</option>
-                    <option value="finance">Finance</option>
+                    <option value="approver">Approver</option>
                   </select>
                 </div>
               </>

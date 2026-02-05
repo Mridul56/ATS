@@ -11,6 +11,8 @@ interface ParsedData {
   email?: string;
   phone?: string;
   currentCompany?: string;
+  linkedinUrl?: string;
+  yearsOfExperience?: number;
 }
 
 function extractEmail(text: string): string | undefined {
@@ -67,6 +69,43 @@ function extractCompany(text: string): string | undefined {
   return undefined;
 }
 
+function extractLinkedIn(text: string): string | undefined {
+  const linkedinRegex = /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+\/?/gi;
+  const matches = text.match(linkedinRegex);
+  return matches ? matches[0] : undefined;
+}
+
+function extractYearsOfExperience(text: string): number | undefined {
+  const yearPatterns = [
+    /(\d+)\+?\s*years?\s+(?:of\s+)?experience/gi,
+    /experience\s*:?\s*(\d+)\+?\s*years?/gi,
+    /(\d+)\+?\s*years?\s+in/gi,
+  ];
+
+  for (const regex of yearPatterns) {
+    const match = regex.exec(text);
+    if (match && match[1]) {
+      const years = parseInt(match[1]);
+      if (years >= 0 && years <= 50) {
+        return years;
+      }
+    }
+  }
+
+  const yearRanges = text.match(/\b(19|20)\d{2}\b/g);
+  if (yearRanges && yearRanges.length >= 2) {
+    const years = yearRanges.map(y => parseInt(y)).sort();
+    const earliestYear = years[0];
+    const currentYear = new Date().getFullYear();
+    const experience = currentYear - earliestYear;
+    if (experience >= 0 && experience <= 50) {
+      return experience;
+    }
+  }
+
+  return undefined;
+}
+
 async function parseTextContent(text: string): Promise<ParsedData> {
   const parsed: ParsedData = {};
 
@@ -74,6 +113,8 @@ async function parseTextContent(text: string): Promise<ParsedData> {
   parsed.phone = extractPhone(text);
   parsed.fullName = extractName(text);
   parsed.currentCompany = extractCompany(text);
+  parsed.linkedinUrl = extractLinkedIn(text);
+  parsed.yearsOfExperience = extractYearsOfExperience(text);
 
   return parsed;
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Briefcase, Users, Calendar, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { Briefcase, Users, Calendar, TrendingUp, Clock, CheckCircle, MessageSquare, ThumbsUp, ThumbsDown, AlertCircle } from 'lucide-react';
 
 interface Stats {
   totalJobs: number;
@@ -11,7 +12,20 @@ interface Stats {
   hiredThisMonth: number;
 }
 
+interface InterviewFeedback {
+  id: string;
+  candidate_name: string;
+  job_title: string;
+  round_number: number;
+  rating: number;
+  feedback: string;
+  result: string;
+  interviewer_name: string;
+  created_at: string;
+}
+
 export const Dashboard: React.FC = () => {
+  const { profile } = useAuth();
   const [stats, setStats] = useState<Stats>({
     totalJobs: 0,
     activeJobs: 0,
@@ -20,24 +34,28 @@ export const Dashboard: React.FC = () => {
     pendingOffers: 0,
     hiredThisMonth: 0,
   });
+  const [recentFeedback, setRecentFeedback] = useState<InterviewFeedback[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadStats();
-  }, []);
+    if (profile?.role === 'recruiter' || profile?.role === 'admin') {
+      loadRecentFeedback();
+    }
+  }, [profile]);
 
   const loadStats = async () => {
     try {
       const [jobs, candidates, interviews, offers] = await Promise.all([
         supabase.from('jobs').select('status', { count: 'exact' }),
         supabase.from('candidates').select('current_stage', { count: 'exact' }),
-        supabase.from('interviews').select('status, scheduled_at', { count: 'exact' }),
+        supabase.from('interview_schedules').select('status, scheduled_at', { count: 'exact' }),
         supabase.from('offers').select('status', { count: 'exact' }),
       ]);
 
       const activeJobs = jobs.data?.filter(j => j.status === 'published').length || 0;
       const upcomingInterviews = interviews.data?.filter(i =>
-        i.status === 'scheduled' && new Date(i.scheduled_at) > new Date()
+        i.status === 'scheduled' && i.scheduled_at && new Date(i.scheduled_at) > new Date()
       ).length || 0;
       const pendingOffers = offers.data?.filter(o => o.status === 'sent').length || 0;
       const hiredThisMonth = candidates.data?.filter(c => {
@@ -56,6 +74,46 @@ export const Dashboard: React.FC = () => {
       console.error('Error loading stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRecentFeedback = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('interview_schedules')
+        .select(`
+          id,
+          round_number,
+          rating,
+          feedback,
+          result,
+          updated_at,
+          candidates!interview_schedules_candidate_id_fkey(full_name),
+          jobs!interview_schedules_job_id_fkey(title),
+          profiles!interview_schedules_interviewer_id_fkey(full_name)
+        `)
+        .eq('status', 'completed')
+        .not('feedback', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      const formattedFeedback = (data || []).map((item: any) => ({
+        id: item.id,
+        candidate_name: item.candidates?.full_name || 'Unknown',
+        job_title: item.jobs?.title || 'Unknown',
+        round_number: item.round_number,
+        rating: item.rating,
+        feedback: item.feedback,
+        result: item.result,
+        interviewer_name: item.profiles?.full_name || 'Unknown',
+        created_at: item.updated_at,
+      }));
+
+      setRecentFeedback(formattedFeedback);
+    } catch (error) {
+      console.error('Error loading feedback:', error);
     }
   };
 
@@ -156,17 +214,64 @@ export const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Recent Activity</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-slate-900">Recent Interview Feedback</h3>
+            <MessageSquare className="w-5 h-5 text-slate-400" />
+          </div>
           <div className="space-y-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="flex items-start space-x-3 pb-4 border-b border-slate-100 last:border-0">
-                <div className="w-2 h-2 bg-slate-400 rounded-full mt-2"></div>
-                <div className="flex-1">
-                  <p className="text-sm text-slate-600">Loading recent activities...</p>
-                  <p className="text-xs text-slate-400 mt-1">Just now</p>
-                </div>
+            {recentFeedback.length > 0 ? (
+              recentFeedback.slice(0, 5).map((feedback) => {
+                const getResultIcon = () => {
+                  if (feedback.result === 'passed') return <ThumbsUp className="w-4 h-4 text-green-600" />;
+                  if (feedback.result === 'rejected') return <ThumbsDown className="w-4 h-4 text-red-600" />;
+                  return <AlertCircle className="w-4 h-4 text-yellow-600" />;
+                };
+
+                const getResultColor = () => {
+                  if (feedback.result === 'passed') return 'bg-green-50 border-green-200';
+                  if (feedback.result === 'rejected') return 'bg-red-50 border-red-200';
+                  return 'bg-yellow-50 border-yellow-200';
+                };
+
+                return (
+                  <div key={feedback.id} className={`p-3 border rounded-lg ${getResultColor()}`}>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-slate-900">{feedback.candidate_name}</p>
+                        <p className="text-xs text-slate-600">{feedback.job_title} - Round {feedback.round_number}</p>
+                      </div>
+                      {getResultIcon()}
+                    </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <div
+                            key={i}
+                            className={`w-2 h-2 rounded-full ${
+                              i < (feedback.rating || 0) ? 'bg-yellow-500' : 'bg-slate-200'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-xs text-slate-600">{feedback.rating}/5</span>
+                    </div>
+                    {feedback.feedback && (
+                      <p className="text-xs text-slate-700 mb-2 line-clamp-2">{feedback.feedback}</p>
+                    )}
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span>By {feedback.interviewer_name}</span>
+                      <span>{new Date(feedback.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-8">
+                <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm text-slate-600">No interview feedback yet</p>
+                <p className="text-xs text-slate-500 mt-1">Feedback will appear here when interviewers submit their reviews</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
 

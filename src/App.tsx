@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -15,6 +15,7 @@ import { CandidateDashboard } from './pages/CandidateDashboard';
 import { CandidatePortal } from './pages/CandidatePortal';
 import { HiringManagerDashboard } from './pages/HiringManagerDashboard';
 import { FinanceDashboard } from './pages/FinanceDashboard';
+import { InterviewerDashboard } from './pages/InterviewerDashboard';
 import { Layout } from './components/Layout';
 
 const AppContent: React.FC = () => {
@@ -94,6 +95,14 @@ const AppContent: React.FC = () => {
     return (
       <Layout currentPage="portal" onNavigate={() => {}}>
         <CandidatePortal />
+      </Layout>
+    );
+  }
+
+  if (profile?.role === 'interviewer') {
+    return (
+      <Layout currentPage="dashboard" onNavigate={() => {}}>
+        <InterviewerDashboard />
       </Layout>
     );
   }

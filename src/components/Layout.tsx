@@ -23,7 +23,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigat
   const { profile, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const navigation = [
+  const allNavigation = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'jobs', name: 'Jobs', icon: Briefcase },
     { id: 'candidates', name: 'Candidates', icon: Users },
@@ -32,6 +32,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, onNavigat
     { id: 'analytics', name: 'Analytics', icon: BarChart3 },
     { id: 'settings', name: 'Settings', icon: Settings },
   ];
+
+  const navigation = profile?.role === 'interviewer'
+    ? allNavigation.filter(item => item.id === 'interviews')
+    : allNavigation;
 
   const handleSignOut = () => {
     signOut();
